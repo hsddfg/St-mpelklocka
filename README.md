@@ -1,7 +1,7 @@
 # Stämpelklocka
 
 En enkel stämpelklocka för mobilen. Stämpla in, gå på lunch och stämpla ut – antingen genom att
-skanna en QR-kod eller med en knapp i appen.
+skanna en QR-kod, hålla telefonen mot en NFC-klisterlapp eller med en knapp i appen.
 
 Appen är en så kallad PWA (webbapp som installeras på hemskärmen). Den fungerar på **Android**
 och **iPhone**, fungerar offline och kräver ingen inloggning eller server – alla stämplingar
@@ -16,6 +16,8 @@ sparas bara på din egen telefon.
   - **Gå hem** – stämplar ut.
   - **Stämpla** – en enda kod för allt; appen frågar *Lunch eller Gå hem?* när det behövs.
 - QR-koderna kan skannas med **appens egen skanner** eller med **telefonens vanliga kamera**.
+- **NFC-lappar**: samma fyra koder kan skrivas till NFC-klisterlappar. Håll telefonen mot lappen
+  så stämplas du – även när appen är stängd.
 - Skydd mot dubbelskanning (samma stämpling inom 2 minuter ignoreras).
 - **Idag**: status, arbetad tid, lunchtid och veckans totala tid.
 - **Historik** per vecka och dag. Tryck på en stämpling för att ändra eller ta bort den,
@@ -45,11 +47,31 @@ Enklast är GitHub Pages (ingår i repot):
 Öppna fliken **QR-koder** i appen (på den publicerade adressen) och tryck *Skriv ut*.
 Sätt t.ex. *Kom till jobbet* / *Gå hem* vid entrén och *Lunch* i lunchrummet.
 
+### 4. NFC-lappar (valfritt)
+
+Köp NFC-klisterlappar av typen **NTAG213** eller **NTAG215** (finns billigt på t.ex. Kjell,
+Amazon eller AliExpress). Sedan:
+
+- **Android (Chrome):** öppna fliken **Koder**, tryck *Skriv till NFC-lapp* under önskad kod och
+  håll telefonen mot lappen. Klart.
+- **Annan telefon/webbläsare:** tryck *Kopiera NFC-länk* och skriv länken till lappen med en
+  gratis app som *NFC Tools* (välj *Skriv → Lägg till post → URL*).
+
+Att tänka på:
+
+- Telefonen måste vara **upplåst** och ha **NFC påslaget** för att läsa lappen.
+- Slå gärna på **Läs NFC-lappar direkt i appen** under *Mer* (Android). Då stämplar appen direkt
+  när den är öppen, i stället för att Android öppnar länken i webbläsaren.
+- Lås gärna lappen (skrivskydd) i *NFC Tools* när den sitter uppe, så att ingen kan skriva över den.
+- Sitter lappen på en metalldörr kan den behöva en "on-metal"-variant för att läsas.
+
 ## Bra att veta
 
 - **iPhone:** en app som lagts på hemskärmen har egen lagring, skild från Safari. Skanna därför
   med **appens skanner-knapp** på iPhone. Skannar du med vanliga kameran öppnas länken i Safari
-  och stämplingen hamnar där i stället. På Android spelar det ingen roll.
+  och stämplingen hamnar där i stället. Samma sak gäller NFC-lappar på iPhone (de öppnas alltid
+  i Safari). Vill du använda NFC på iPhone, använd då appen i Safari i stället för från
+  hemskärmen. På Android spelar det ingen roll.
 - Data finns bara på telefonen. Ta en säkerhetskopia (fliken *Mer*) ibland och innan du byter telefon.
 - Vill du testa lokalt: `python3 -m http.server` i mappen och öppna `http://localhost:8000`.
 

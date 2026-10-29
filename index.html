@@ -62,8 +62,9 @@
     <!-- QR-koder -->
     <section id="view-qr" class="view">
       <div class="card no-print">
-        <h2>QR-koder att skriva ut</h2>
+        <h2>QR-koder och NFC-lappar</h2>
         <p class="muted">Skriv ut och sätt upp koderna, t.ex. vid entrén och i lunchrummet. De kan skannas med appens skanner eller med telefonens vanliga kamera.</p>
+        <p class="muted">Du kan också använda NFC-klisterlappar (t.ex. NTAG213/215). Skriv en kod till en lapp med knappen under koden. Sedan räcker det att hålla telefonen mot lappen.</p>
         <label class="field">
           <span>Adress som koderna pekar på</span>
           <input id="qr-base" type="url" inputmode="url" autocomplete="off">
@@ -96,6 +97,10 @@
       <div class="card">
         <h2>Övrigt</h2>
         <label class="check"><input id="set-vibrate" type="checkbox"> Vibrera vid stämpling</label>
+        <div id="nfc-setting" hidden>
+          <label class="check"><input id="set-nfc" type="checkbox"> Läs NFC-lappar direkt i appen</label>
+          <p class="hint">När appen är öppen stämplar den direkt när du håller telefonen mot en lapp, utan att webbläsaren öppnas. Lapparna fungerar även när appen är stängd.</p>
+        </div>
         <button id="clear-btn" class="btn danger" type="button">Radera alla stämplingar</button>
         <p class="hint" id="storage-info"></p>
       </div>
@@ -113,7 +118,7 @@
     </button>
     <button class="tab" data-view="qr" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      QR-koder
+      Koder
     </button>
     <button class="tab" data-view="settings" type="button">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="12" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/></svg>
@@ -158,6 +163,14 @@
         <button id="edit-save" value="save" class="btn">Spara</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- NFC-skrivning -->
+  <dialog id="nfc-dialog" class="sheet">
+    <h2 id="nfc-title"></h2>
+    <div class="nfc-anim" aria-hidden="true"></div>
+    <p id="nfc-msg" class="muted"></p>
+    <div class="row end"><button id="nfc-cancel" class="btn secondary" type="button">Avbryt</button></div>
   </dialog>
 
   <!-- Val -->

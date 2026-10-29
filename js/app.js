@@ -21,7 +21,7 @@ const QR_KINDS = {
   auto:  { title: 'Stämpla',         text: 'En kod för allt – appen frågar vid behov' },
 };
 
-const SOURCES = { button: 'knapp', qr: 'QR', manual: 'manuell' };
+const SOURCES = { button: 'knapp', qr: 'QR', nfc: 'NFC', manual: 'manuell' };
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -45,7 +45,7 @@ function load() {
 }
 
 function defaultSettings() {
-  return { vibrate: true, qrBase: '' };
+  return { vibrate: true, qrBase: '', nfcRead: false };
 }
 
 function save() {
@@ -434,9 +434,11 @@ function qrBase() {
   return state.settings.qrBase || defaultQrBase();
 }
 
-function qrUrl(kind) {
+// NFC-lappar får ?via=nfc så att historiken visar varifrån stämplingen kom.
+function qrUrl(kind, via) {
   const u = new URL(qrBase());
   u.searchParams.set('stamp', kind);
+  if (via) u.searchParams.set('via', via);
   return u.toString();
 }
 
@@ -460,9 +462,85 @@ function renderQr() {
     } catch (e) {
       svg = '<p>Ogiltig adress</p>';
     }
-    card.innerHTML = `<h3>${k.title}</h3>${svg}<p>${k.text}</p>`;
+    card.innerHTML = `<h3>${k.title}</h3>${svg}<p>${k.text}</p>
+      <div class="nfc-row no-print"><button class="btn secondary" type="button"></button></div>`;
+    const nfcBtn = card.querySelector('.nfc-row button');
+    if ('NDEFReader' in window) {
+      nfcBtn.textContent = 'Skriv till NFC-lapp';
+      nfcBtn.onclick = () => writeNfc(kind);
+    } else {
+      nfcBtn.textContent = 'Kopiera NFC-länk';
+      nfcBtn.onclick = () => copyText(qrUrl(kind, 'nfc'));
+    }
     grid.append(card);
   }
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Länken är kopierad – skriv den till lappen med en NFC-app');
+  } catch (_) {
+    prompt('Kopiera länken:', text);
+  }
+}
+
+/* ===================== NFC (Web NFC, Chrome på Android) ===================== */
+
+let nfcReader = null;
+let nfcIgnoreUntil = 0; // ignorera läsningar medan vi själva skriver en lapp
+
+async function writeNfc(kind) {
+  const dlg = $('#nfc-dialog');
+  const ctrl = new AbortController();
+  $('#nfc-title').textContent = `Skriv "${QR_KINDS[kind].title}"`;
+  $('#nfc-msg').textContent = 'Håll telefonens baksida mot NFC-lappen…';
+  $('#nfc-cancel').onclick = () => { ctrl.abort(); dlg.close(); };
+  dlg.showModal();
+  nfcIgnoreUntil = Infinity;
+  try {
+    const writer = new NDEFReader();
+    await writer.write({ records: [{ recordType: 'url', data: qrUrl(kind, 'nfc') }] }, { signal: ctrl.signal });
+    if (state.settings.vibrate && navigator.vibrate) navigator.vibrate(80);
+    dlg.close();
+    toast('NFC-lappen är klar ✓');
+  } catch (e) {
+    if (ctrl.signal.aborted) return;
+    $('#nfc-msg').textContent = e.name === 'NotAllowedError'
+      ? 'Appen fick inte använda NFC. Tillåt NFC för sidan och försök igen.'
+      : 'Kunde inte skriva. Kontrollera att NFC är på och att lappen inte är låst, och försök igen.';
+  } finally {
+    nfcIgnoreUntil = Date.now() + 3000;
+  }
+}
+
+// Läser lappar direkt i appen när den är öppen, så att Android inte öppnar länken i webbläsaren.
+async function startNfcRead() {
+  if (nfcReader || !('NDEFReader' in window)) return;
+  const reader = new NDEFReader();
+  await reader.scan();
+  nfcReader = reader;
+  reader.onreading = (ev) => {
+    if (Date.now() < nfcIgnoreUntil) return;
+    for (const rec of ev.message.records) {
+      if (rec.recordType !== 'url' && rec.recordType !== 'text') continue;
+      const kind = parseQr(new TextDecoder(rec.encoding || 'utf-8').decode(rec.data));
+      if (kind) {
+        if (document.querySelector('dialog[open]')) return;
+        handleKind(kind, SOURCES.nfc);
+        return;
+      }
+    }
+    toast('Det där är inte en stämpellapp');
+  };
+}
+
+async function resumeNfcRead() {
+  if (!state.settings.nfcRead || nfcReader || !('NDEFReader' in window)) return;
+  try {
+    const perm = await navigator.permissions.query({ name: 'nfc' });
+    if (perm.state === 'granted') await startNfcRead();
+  } catch (_) { /* startas igen nästa gång användaren slår på det */ }
 }
 
 /* ===================== Skanner ===================== */
@@ -795,6 +873,24 @@ function bind() {
   $('#set-vibrate').checked = state.settings.vibrate;
   $('#set-vibrate').onchange = (ev) => { state.settings.vibrate = ev.target.checked; save(); };
 
+  if ('NDEFReader' in window) {
+    $('#nfc-setting').hidden = false;
+    $('#set-nfc').checked = state.settings.nfcRead;
+    $('#set-nfc').onchange = async (ev) => {
+      state.settings.nfcRead = ev.target.checked;
+      save();
+      if (!ev.target.checked) return toast('Gäller från nästa gång appen startas');
+      try {
+        await startNfcRead();
+        toast('NFC-läsning på');
+      } catch (e) {
+        ev.target.checked = state.settings.nfcRead = false;
+        save();
+        toast('Fick inte använda NFC. Är NFC påslaget i telefonen?');
+      }
+    };
+  }
+
   $('#clear-btn').onclick = () => {
     if (!state.events.length) return toast('Det finns inget att radera');
     if (!confirm('Radera ALLA stämplingar? Det går inte att ångra.')) return;
@@ -811,7 +907,7 @@ function bind() {
     if (ev.key === STORE_KEY) { state = load(); render(); }
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { state = load(); render(); }
+    if (!document.hidden) { state = load(); render(); resumeNfcRead(); }
   });
 }
 
@@ -827,9 +923,11 @@ function handleLaunchUrl() {
   const kind = params.get('stamp');
   if (!kind) return;
   params.delete('stamp');
+  const src = params.get('via') === 'nfc' ? SOURCES.nfc : SOURCES.qr;
+  params.delete('via');
   const rest = params.toString();
   history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : '') + location.hash);
-  if (QR_KINDS[kind]) handleKind(kind, SOURCES.qr);
+  if (QR_KINDS[kind]) handleKind(kind, src);
 }
 
 /* ===================== Start ===================== */
@@ -840,6 +938,7 @@ tickClock();
 setInterval(tickClock, 1000);
 setInterval(renderToday, 30000);
 handleLaunchUrl();
+resumeNfcRead();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker', e));

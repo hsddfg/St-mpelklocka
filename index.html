@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Stämpelklocka</title>
+  <meta name="description" content="Stämpla in och ut med QR-kod eller knapp.">
+  <meta name="theme-color" content="#1f6f5c">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Stämpel">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Stämpelklocka</h1>
+    <span id="clock" class="clock"></span>
+  </header>
+
+  <main>
+    <!-- Idag -->
+    <section id="view-today" class="view active">
+      <div id="status-card" class="card status">
+        <div class="status-label" id="status-label">Inte instämplad</div>
+        <div class="status-since" id="status-since"></div>
+        <div class="today-total">
+          <div><span class="muted">Arbetat idag</span><strong id="today-worked">0 h 0 min</strong></div>
+          <div><span class="muted">Lunch</span><strong id="today-lunch">0 min</strong></div>
+          <div><span class="muted">Denna vecka</span><strong id="week-worked">0 h 0 min</strong></div>
+        </div>
+      </div>
+
+      <div id="actions" class="actions"></div>
+
+      <button id="scan-btn" class="btn scan" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 3h3a1 1 0 0 1 1 1v3M21 17v3a1 1 0 0 1-1 1h-3M7 21H4a1 1 0 0 1-1-1v-3M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Skanna QR-kod
+      </button>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Dagens stämplingar</h2>
+          <button class="link" type="button" data-add-event>+ Lägg till</button>
+        </div>
+        <ul id="today-list" class="event-list"></ul>
+      </div>
+    </section>
+
+    <!-- Historik -->
+    <section id="view-history" class="view">
+      <div class="card-head">
+        <h2>Historik</h2>
+        <button class="link" type="button" data-add-event>+ Lägg till</button>
+      </div>
+      <div id="history"></div>
+    </section>
+
+    <!-- QR-koder -->
+    <section id="view-qr" class="view">
+      <div class="card no-print">
+        <h2>QR-koder att skriva ut</h2>
+        <p class="muted">Skriv ut och sätt upp koderna, t.ex. vid entrén och i lunchrummet. De kan skannas med appens skanner eller med telefonens vanliga kamera.</p>
+        <label class="field">
+          <span>Adress som koderna pekar på</span>
+          <input id="qr-base" type="url" inputmode="url" autocomplete="off">
+        </label>
+        <p class="hint">Bör vara den adress där appen ligger publicerad. Ändra bara om du vet att den ska vara en annan.</p>
+        <button id="print-btn" class="btn" type="button">Skriv ut</button>
+      </div>
+      <div id="qr-grid" class="qr-grid"></div>
+    </section>
+
+    <!-- Inställningar -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <h2>Exportera</h2>
+        <p class="muted">Tidrapport per dag som CSV (öppnas i Excel eller Google Kalkylark).</p>
+        <div class="row">
+          <label class="field"><span>Från</span><input id="exp-from" type="date"></label>
+          <label class="field"><span>Till</span><input id="exp-to" type="date"></label>
+        </div>
+        <button id="export-csv" class="btn" type="button">Ladda ner CSV</button>
+      </div>
+      <div class="card">
+        <h2>Säkerhetskopia</h2>
+        <p class="muted">Allt sparas bara på den här telefonen. Spara en säkerhetskopia ibland, eller innan du byter telefon.</p>
+        <div class="row">
+          <button id="backup-btn" class="btn secondary" type="button">Spara kopia</button>
+          <label class="btn secondary file-btn">Återställ kopia<input id="restore-input" type="file" accept="application/json,.json"></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Övrigt</h2>
+        <label class="check"><input id="set-vibrate" type="checkbox"> Vibrera vid stämpling</label>
+        <button id="clear-btn" class="btn danger" type="button">Radera alla stämplingar</button>
+        <p class="hint" id="storage-info"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Huvudmeny">
+    <button class="tab active" data-view="today" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Idag
+    </button>
+    <button class="tab" data-view="history" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Historik
+    </button>
+    <button class="tab" data-view="qr" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      QR-koder
+    </button>
+    <button class="tab" data-view="settings" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="12" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/></svg>
+      Mer
+    </button>
+  </nav>
+
+  <!-- Skanner -->
+  <dialog id="scanner" class="scanner">
+    <div class="scanner-inner">
+      <video id="scan-video" playsinline muted></video>
+      <div class="scan-frame" aria-hidden="true"></div>
+      <p id="scan-msg" class="scan-msg">Rikta kameran mot QR-koden</p>
+      <button id="scan-close" class="btn secondary" type="button">Avbryt</button>
+    </div>
+  </dialog>
+
+  <!-- Redigera / lägg till -->
+  <dialog id="edit-dialog" class="sheet">
+    <form method="dialog" id="edit-form">
+      <h2 id="edit-title">Ändra stämpling</h2>
+      <label class="field">
+        <span>Typ</span>
+        <select id="edit-type">
+          <option value="in">Kom in</option>
+          <option value="lunch_out">Lunch början</option>
+          <option value="lunch_in">Lunch slut</option>
+          <option value="out">Gick hem</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Tid</span>
+        <input id="edit-time" type="datetime-local" required>
+      </label>
+      <label class="field">
+        <span>Anteckning (valfri)</span>
+        <input id="edit-note" type="text" maxlength="200">
+      </label>
+      <div class="row end">
+        <button id="edit-delete" class="btn danger" type="button">Ta bort</button>
+        <button value="cancel" class="btn secondary" formnovalidate>Avbryt</button>
+        <button id="edit-save" value="save" class="btn">Spara</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Val -->
+  <dialog id="choice-dialog" class="sheet">
+    <h2 id="choice-title"></h2>
+    <p id="choice-text" class="muted"></p>
+    <div id="choice-buttons" class="choice-buttons"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/qrcode.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

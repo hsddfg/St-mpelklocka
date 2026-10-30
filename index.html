@@ -28,11 +28,15 @@
         <div class="status-label" id="status-label">Inte instämplad</div>
         <div class="status-since" id="status-since"></div>
         <div class="today-total">
-          <div><span class="muted">Arbetat idag</span><strong id="today-worked">0 h 0 min</strong></div>
+          <div><span class="muted">Arbetat idag</span><strong id="today-worked">0 min</strong></div>
+          <div><span class="muted" id="today-left-label">Kvar idag</span><strong id="today-left">0 min</strong></div>
           <div><span class="muted">Lunch</span><strong id="today-lunch">0 min</strong></div>
-          <div><span class="muted">Denna vecka</span><strong id="week-worked">0 h 0 min</strong></div>
+          <div><span class="muted">Flex denna vecka</span><strong id="week-flex">±0 min</strong></div>
         </div>
+        <div id="today-acts" class="today-acts"></div>
       </div>
+
+      <div id="act-picker" class="segmented" role="group" aria-label="Aktivitet"></div>
 
       <div id="actions" class="actions"></div>
 
@@ -78,13 +82,46 @@
     <!-- Inställningar -->
     <section id="view-settings" class="view">
       <div class="card">
-        <h2>Exportera</h2>
-        <p class="muted">Tidrapport per dag som CSV (öppnas i Excel eller Google Kalkylark).</p>
-        <div class="row">
+        <h2>Rapport</h2>
+        <p class="muted">Sammanfattning med arbetad tid, flex mot schemat och fördelning per aktivitet.</p>
+        <label class="field">
+          <span>Period</span>
+          <select id="rep-period">
+            <option value="this-week">Denna vecka</option>
+            <option value="last-week">Förra veckan</option>
+            <option value="this-month">Denna månad</option>
+            <option value="last-month">Förra månaden</option>
+            <option value="custom">Välj datum…</option>
+          </select>
+        </label>
+        <div class="row" id="rep-custom" hidden>
           <label class="field"><span>Från</span><input id="exp-from" type="date"></label>
           <label class="field"><span>Till</span><input id="exp-to" type="date"></label>
         </div>
-        <button id="export-csv" class="btn" type="button">Ladda ner CSV</button>
+        <label class="field">
+          <span>Skicka till e-post</span>
+          <input id="set-email" type="email" inputmode="email" autocomplete="email" placeholder="namn@exempel.se">
+        </label>
+        <div class="row">
+          <button id="rep-mail" class="btn" type="button">Skicka e-post</button>
+          <button id="rep-share" class="btn secondary" type="button">Dela…</button>
+          <button id="export-csv" class="btn secondary" type="button">Ladda ner CSV</button>
+        </div>
+        <details class="preview">
+          <summary>Förhandsgranska</summary>
+          <pre id="rep-preview"></pre>
+        </details>
+      </div>
+      <div class="card">
+        <h2>Aktiviteter</h2>
+        <p class="muted">Dela upp dagen, t.ex. i klinik och forskning. Den första är förvald.</p>
+        <ul id="act-list" class="act-list"></ul>
+        <button id="act-add" class="link" type="button">+ Lägg till aktivitet</button>
+      </div>
+      <div class="card">
+        <h2>Arbetstid</h2>
+        <p class="muted">Ditt schema. Flex räknas som arbetad tid minus schemats tid (minus lunch). Dagar utan stämplingar, t.ex. ledighet, räknas inte.</p>
+        <div id="schedule" class="schedule"></div>
       </div>
       <div class="card">
         <h2>Säkerhetskopia</h2>
@@ -147,7 +184,12 @@
           <option value="lunch_out">Lunch början</option>
           <option value="lunch_in">Lunch slut</option>
           <option value="out">Gick hem</option>
+          <option value="switch">Bytte aktivitet</option>
         </select>
+      </label>
+      <label class="field" id="edit-act-field">
+        <span>Aktivitet</span>
+        <select id="edit-act"></select>
       </label>
       <label class="field">
         <span>Tid</span>

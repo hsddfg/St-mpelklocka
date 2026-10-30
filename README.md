@@ -22,7 +22,16 @@ sparas bara på din egen telefon.
 - **Idag**: status, arbetad tid, lunchtid och veckans totala tid.
 - **Historik** per vecka och dag. Tryck på en stämpling för att ändra eller ta bort den,
   eller lägg till en du glömt. Dagar där du glömt stämpla ut markeras med ⚠️.
-- **Export** av tidrapport som CSV (Excel/Google Kalkylark) och **säkerhetskopia** som JSON.
+- **Aktiviteter**: dela upp dagen, t.ex. *Klinik* och *Forskning*. Välj aktivitet med reglaget
+  ovanför knapparna – är du instämplad byter du direkt. Varje aktivitet får också en egen
+  QR-kod/NFC-lapp som stämplar in på, eller byter till, aktiviteten. Aktiviteterna ändras under *Mer*.
+- **Flex mot schema**: arbetad tid jämförs med ditt schema (förinställt mån–tor 8–17,
+  fre 8–15.45, 45 min lunch – ändras under *Mer*). Visas idag, per dag och per vecka.
+  Dagar utan stämplingar (ledighet, röda dagar) räknas inte.
+- **Rapport via e-post**: välj period och tryck *Skicka e-post* – mejlappen öppnas med en färdig
+  sammanfattning (arbetad tid, schema, flex, fördelning per aktivitet och per dag) till den
+  adress du angett. Finns även *Dela…* och CSV-export (Excel/Google Kalkylark).
+- **Säkerhetskopia** som JSON.
 
 ## Kom igång
 

@@ -27,7 +27,11 @@ sparas bara på din egen telefon.
   QR-kod/NFC-lapp som stämplar in på, eller byter till, aktiviteten. Aktiviteterna ändras under *Mer*.
 - **Flex mot schema**: arbetad tid jämförs med ditt schema (förinställt mån–tor 8–17,
   fre 8–15.45, 45 min lunch – ändras under *Mer*). Visas idag, per dag och per vecka.
-  Dagar utan stämplingar (ledighet, röda dagar) räknas inte.
+  Dagar utan stämplingar (t.ex. röda dagar) räknas inte.
+- **Ledig / sjuk**: knappen *Ledig / sjuk…* (eller *+ Frånvaro* i historiken) registrerar
+  frånvaro för en dag eller en period, hela dagen eller ett antal timmar, med valfri orsak.
+  *Ledig* och *Sjuk* räknas som uppfylld schematid; *Flexledig* tas från flexen.
+  Frånvaron syns i historiken, rapporten och CSV-filen.
 - **Rapport via e-post**: välj period och tryck *Skicka e-post* – mejlappen öppnas med en färdig
   sammanfattning (arbetad tid, schema, flex, fördelning per aktivitet och per dag) till den
   adress du angett. Finns även *Dela…* och CSV-export (Excel/Google Kalkylark).

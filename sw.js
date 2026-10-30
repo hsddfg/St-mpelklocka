@@ -1,5 +1,5 @@
 // Höj versionen när filerna ändras så att telefonerna hämtar den nya versionen.
-const CACHE = 'stampelklocka-v3';
+const CACHE = 'stampelklocka-v4';
 const FILES = [
   './',
   'index.html',

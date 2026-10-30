@@ -16,6 +16,14 @@ const TYPES = {
 
 // Typer som startar arbete och därför hör till en aktivitet.
 const ACT_TYPES = ['in', 'lunch_in', 'switch'];
+// Frånvaro. credit: dagen räknas som uppfylld schematid (påverkar inte flex).
+// Flexledig räknas inte som uppfylld, så schematiden dras från flexen.
+const ABSENCE_KINDS = {
+  ledig: { label: 'Ledig', credit: true, hint: 'Semester, tjänstledighet m.m. Räknas som en vanlig arbetsdag i flexen.' },
+  sjuk:  { label: 'Sjuk',  credit: true, hint: 'Räknas som en vanlig arbetsdag i flexen.' },
+  flex:  { label: 'Flexledig', credit: false, hint: 'Ledigt som tas från flexen – schemats tid dras från saldot.' },
+};
+
 const WEEKDAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 
 // Vad en QR-kod betyder. "lunch" och "auto" tolkas utifrån nuvarande status.
@@ -42,13 +50,19 @@ function load() {
       const data = JSON.parse(raw);
       return {
         events: Array.isArray(data.events) ? data.events.filter(isValidEvent) : [],
+        absences: Array.isArray(data.absences) ? data.absences.filter(isValidAbsence) : [],
         settings: Object.assign(defaultSettings(), data.settings || {}),
       };
     }
   } catch (e) {
     console.error('Kunde inte läsa sparad data', e);
   }
-  return { events: [], settings: defaultSettings() };
+  return { events: [], absences: [], settings: defaultSettings() };
+}
+
+function isValidAbsence(a) {
+  return a && typeof a.id === 'string' && ABSENCE_KINDS[a.kind]
+    && /^\d{4}-\d{2}-\d{2}$/.test(a.from) && /^\d{4}-\d{2}-\d{2}$/.test(a.to) && a.from <= a.to;
 }
 
 function defaultSettings() {
@@ -146,6 +160,38 @@ function fmtHours(ms) {
 function hmToMin(hm) {
   const [h, m] = String(hm || '0:0').split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
+}
+
+// Frånvaro per datum. Perioder (t.ex. en veckas semester) gäller bara schemalagda
+// arbetsdagar; en enstaka dag gäller alltid. Senast tillagd vinner vid överlapp.
+function absenceMap() {
+  const map = new Map();
+  for (const a of state.absences) {
+    for (let d = keyToDate(a.from); dateKey(d) <= a.to; d.setDate(d.getDate() + 1)) {
+      const key = dateKey(d);
+      if (a.from === a.to || expectedMs(key) > 0) map.set(key, a);
+    }
+  }
+  return map;
+}
+
+// Hur mycket frånvaro en dag omfattar (hela dagen = schemats tid).
+function absenceMs(a, key) {
+  return a.hours != null ? a.hours * 3600000 : expectedMs(key);
+}
+
+// Schematid efter avdrag för ledighet/sjukdom.
+function dayExpected(key, absences) {
+  const expected = expectedMs(key);
+  const a = absences.get(key);
+  if (!a || !ABSENCE_KINDS[a.kind].credit) return expected;
+  return Math.max(0, expected - absenceMs(a, key));
+}
+
+function fmtAbsence(a, key) {
+  const k = ABSENCE_KINDS[a.kind].label;
+  const amount = a.hours != null ? ` ${fmtDur(a.hours * 3600000)}` : '';
+  return `${k}${amount}${a.reason ? ` – ${a.reason}` : ''}`;
 }
 
 // Schemalagd arbetstid för ett datum (i ms).
@@ -407,7 +453,8 @@ function renderToday() {
   }
 
   const worked = today ? today.work : 0;
-  const left = expectedMs(todayKey) - worked;
+  const absences = absenceMap();
+  const left = dayExpected(todayKey, absences) - worked;
   $('#today-worked').textContent = fmtDur(worked);
   $('#today-lunch').textContent = fmtDur(today ? today.lunch : 0);
   $('#today-left-label').textContent = left > 0 ? 'Kvar idag' : 'Över tid idag';
@@ -425,6 +472,14 @@ function renderToday() {
     : '';
 
   renderActPicker(info);
+
+  const abs = absences.get(todayKey);
+  const chip = $('#today-absence');
+  chip.hidden = !abs;
+  if (abs) {
+    chip.textContent = `${fmtAbsence(abs, todayKey)} – ändra`;
+    chip.onclick = () => openAbsence(abs);
+  }
 
   // Knappar beroende på status
   const actions = $('#actions');
@@ -510,13 +565,18 @@ function renderHistory() {
   const root = $('#history');
   root.innerHTML = '';
 
-  const keys = Array.from(info.days.keys()).filter((k) => info.days.get(k).events.length || info.days.get(k).work);
+  const absences = absenceMap();
+  const keys = Array.from(new Set([
+    ...Array.from(info.days.keys()).filter((k) => info.days.get(k).events.length || info.days.get(k).work),
+    ...absences.keys(),
+  ]));
   keys.sort().reverse();
 
   if (!keys.length) {
     root.innerHTML = '<div class="card muted">Inga stämplingar än.</div>';
     return;
   }
+  const dayOf = (k) => info.days.get(k) || { key: k, work: 0, lunch: 0, acts: {}, events: [], incomplete: false };
 
   // Gruppera per vecka
   const weeks = [];
@@ -525,7 +585,7 @@ function renderHistory() {
     const id = `${w.year}-${w.week}`;
     let wk = weeks[weeks.length - 1];
     if (!wk || wk.id !== id) weeks.push(wk = { id, w, days: [] });
-    wk.days.push(info.days.get(k));
+    wk.days.push(dayOf(k));
   }
 
   for (const wk of weeks.slice(0, historyWeeks)) {
@@ -538,8 +598,10 @@ function renderHistory() {
       const row = sum.days.find((x) => x.key === d.key);
       const det = document.createElement('details');
       det.className = 'card day';
+      const abs = absences.get(d.key);
       const sub = [
-        row && row.flex != null ? `flex ${fmtFlex(row.flex)}` : (row && row.inProgress ? 'pågår' : ''),
+        abs ? ABSENCE_KINDS[abs.kind].label : '',
+        row && row.flex != null ? `flex ${fmtFlex(row.flex)}` : (row && row.inProgress ? 'pågår' : (row && row.future ? 'planerad' : '')),
         d.lunch ? `lunch ${fmtDur(d.lunch)}` : '',
         d.incomplete ? 'utstämpling saknas' : '',
       ].filter(Boolean).join(' · ');
@@ -550,10 +612,18 @@ function renderHistory() {
           <span class="day-sum">${fmtDur(d.work)}<small>${sub}</small></span>
         </summary>
         <p class="day-acts"></p>
+        <button type="button" class="absence-chip" hidden></button>
         <ul class="event-list"></ul>`;
+      if (abs) {
+        const chip = det.querySelector('.absence-chip');
+        chip.hidden = false;
+        chip.textContent = fmtAbsence(abs, d.key);
+        chip.onclick = () => openAbsence(abs);
+      }
       det.querySelector('.day-acts').textContent = activities().length > 1 || acts.length > 1
         ? acts.map(([a, ms]) => `${a} ${fmtDur(ms)}`).join(' · ') : '';
-      renderEventList(det.querySelector('ul'), d.events, 'Inga stämplingar');
+      if (abs && !d.events.length) det.querySelector('ul').hidden = true;
+      else renderEventList(det.querySelector('ul'), d.events, 'Inga stämplingar');
       sec.append(det);
     }
     root.append(sec);
@@ -862,6 +932,90 @@ function guessNextType() {
   return { off: 'in', working: 'out', lunch: 'lunch_in' }[status];
 }
 
+/* ===================== Frånvaro ===================== */
+
+let absenceId = null;
+let absenceKind = 'ledig';
+
+function openAbsence(a) {
+  absenceId = a ? a.id : null;
+  const today = dateKey(Date.now());
+  $('#absence-title').textContent = a ? 'Ändra frånvaro' : 'Ledig eller sjuk';
+  setAbsenceKind(a ? a.kind : 'sjuk');
+  $('#absence-from').value = a ? a.from : today;
+  $('#absence-to').value = a ? a.to : today;
+  $('#absence-full').checked = !a || a.hours == null;
+  $('#absence-hours').value = a && a.hours != null ? a.hours : '';
+  $('#absence-reason').value = (a && a.reason) || '';
+  $('#absence-delete').hidden = !a;
+  syncAbsenceHours();
+  $('#absence-dialog').showModal();
+}
+
+function setAbsenceKind(kind) {
+  absenceKind = kind;
+  $$('#absence-kind button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.kind === kind);
+    b.setAttribute('aria-checked', b.dataset.kind === kind);
+  });
+  $('#absence-kind-hint').textContent = ABSENCE_KINDS[kind].hint;
+}
+
+// Del av dag går bara för en enskild dag.
+function syncAbsenceHours() {
+  const single = $('#absence-from').value === $('#absence-to').value;
+  $('#absence-full').parentElement.hidden = !single;
+  if (!single) $('#absence-full').checked = true;
+  $('#absence-hours-field').hidden = $('#absence-full').checked;
+  $('#absence-hours').required = !$('#absence-full').checked;
+}
+
+function bindAbsenceDialog() {
+  const box = $('#absence-kind');
+  for (const [kind, k] of Object.entries(ABSENCE_KINDS)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.kind = kind;
+    b.setAttribute('role', 'radio');
+    b.textContent = k.label;
+    b.onclick = () => setAbsenceKind(kind);
+    box.append(b);
+  }
+  $('#absence-from').onchange = () => {
+    if ($('#absence-to').value < $('#absence-from').value) $('#absence-to').value = $('#absence-from').value;
+    syncAbsenceHours();
+  };
+  $('#absence-to').onchange = syncAbsenceHours;
+  $('#absence-full').onchange = syncAbsenceHours;
+
+  $('#absence-form').addEventListener('submit', (ev) => {
+    if (ev.submitter && ev.submitter.value === 'cancel') return;
+    ev.preventDefault();
+    const from = $('#absence-from').value;
+    const to = $('#absence-to').value;
+    if (!from || !to || from > to) return toast('Kontrollera datumen');
+    const hours = $('#absence-full').checked ? null : Number($('#absence-hours').value);
+    if (hours != null && !(hours > 0)) return toast('Ange antal timmar');
+    const rec = { id: absenceId || newId(), kind: absenceKind, from, to, reason: $('#absence-reason').value.trim() || undefined };
+    if (hours != null) rec.hours = hours;
+    state.absences = state.absences.filter((a) => a.id !== rec.id);
+    state.absences.push(rec);
+    save();
+    $('#absence-dialog').close();
+    render();
+    toast(`${ABSENCE_KINDS[rec.kind].label} sparad ✓`);
+  });
+
+  $('#absence-delete').onclick = () => {
+    if (!confirm('Ta bort frånvaron?')) return;
+    state.absences = state.absences.filter((a) => a.id !== absenceId);
+    save();
+    $('#absence-dialog').close();
+    render();
+    toast('Borttagen');
+  };
+}
+
 /* ===================== Export / backup ===================== */
 
 function download(filename, content, mime) {
@@ -882,21 +1036,31 @@ function download(filename, content, mime) {
  */
 function summarize(info, fromKey, toKey) {
   const todayKey = dateKey(Date.now());
-  const out = { from: fromKey, to: toKey, days: [], work: 0, expected: 0, flex: 0, acts: {}, inProgress: false };
+  const absences = absenceMap();
+  const out = { from: fromKey, to: toKey, days: [], work: 0, expected: 0, flex: 0, acts: {}, absence: {}, inProgress: false };
+  const empty = { work: 0, lunch: 0, acts: {}, events: [], incomplete: false };
   for (let d = keyToDate(fromKey); dateKey(d) <= toKey; d.setDate(d.getDate() + 1)) {
     const key = dateKey(d);
-    const day = info.days.get(key);
-    if (!day || (!day.events.length && !day.work)) continue;
-    const inProgress = key === todayKey && info.status !== 'off';
-    const expected = expectedMs(key);
+    const abs = absences.get(key);
+    let day = info.days.get(key);
+    if (day && !day.events.length && !day.work) day = null;
+    if (!day && !abs) continue;
+    day = day || empty;
+    // Idag räknas först när du stämplat ut (eller är borta hela dagen).
+    const inProgress = key === todayKey
+      && (info.status !== 'off' || (!day.events.length && !(abs && abs.hours == null)));
+    const future = key > todayKey;
+    const expected = dayExpected(key, absences);
     const row = {
       key,
       work: day.work,
       lunch: day.lunch,
       acts: day.acts,
       expected,
-      flex: inProgress ? null : day.work - expected,
+      flex: inProgress || future ? null : day.work - expected,
       inProgress,
+      future,
+      absence: abs,
       incomplete: day.incomplete,
       first: day.events.find((e) => e.type === 'in'),
       last: day.events.filter((e) => e.type === 'out').pop(),
@@ -906,8 +1070,13 @@ function summarize(info, fromKey, toKey) {
     out.days.push(row);
     out.work += day.work;
     for (const [a, ms] of Object.entries(day.acts)) out.acts[a] = (out.acts[a] || 0) + ms;
+    if (abs) {
+      const t = (out.absence[abs.kind] = out.absence[abs.kind] || { days: 0, ms: 0 });
+      t.days++;
+      t.ms += absenceMs(abs, key);
+    }
     if (inProgress) out.inProgress = true;
-    else { out.expected += expected; out.flex += row.flex; }
+    else if (!future) { out.expected += expected; out.flex += row.flex; }
   }
   return out;
 }
@@ -961,6 +1130,10 @@ function reportText(range) {
   lines.push(`Enligt schema: ${fmtDur(sum.expected)}`);
   lines.push(`Flex (mer än schemat): ${fmtFlex(sum.flex)}`);
   if (sum.inProgress) lines.push('(Dagen som pågår räknas inte i flex.)');
+  const absTotals = Object.entries(sum.absence);
+  if (absTotals.length) {
+    lines.push(`Frånvaro: ${absTotals.map(([k, t]) => `${ABSENCE_KINDS[k].label} ${t.days} ${t.days === 1 ? 'dag' : 'dagar'} (${fmtDur(t.ms)})`).join(', ')}`);
+  }
 
   if (multi) {
     lines.push('');
@@ -975,9 +1148,14 @@ function reportText(range) {
   lines.push('Per dag:');
   for (const d of sum.days) {
     const name = keyToDate(d.key).toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short' });
-    const span = `${d.first ? fmtTime(d.first.ts) : '?'}–${d.last ? fmtTime(d.last.ts) : (d.inProgress ? 'pågår' : '?')}`;
     const flex = d.flex != null ? ` (${fmtFlex(d.flex)})` : '';
-    lines.push(`${name}: ${span}, ${fmtDur(d.work)}${flex}${d.lunch ? `, lunch ${fmtDur(d.lunch)}` : ''}`);
+    if (d.events.length) {
+      const span = `${d.first ? fmtTime(d.first.ts) : '?'}–${d.last ? fmtTime(d.last.ts) : (d.inProgress ? 'pågår' : '?')}`;
+      lines.push(`${name}: ${span}, ${fmtDur(d.work)}${flex}${d.lunch ? `, lunch ${fmtDur(d.lunch)}` : ''}`);
+      if (d.absence) lines.push(`   ${fmtAbsence(d.absence, d.key)}`);
+    } else {
+      lines.push(`${name}: ${fmtAbsence(d.absence, d.key)}${d.future ? ' (planerad)' : flex}`);
+    }
     const acts = Object.entries(d.acts).filter(([, ms]) => ms >= 60000);
     if (multi && acts.length) lines.push(`   ${acts.map(([a, ms]) => `${a} ${fmtDur(ms)}`).join(', ')}`);
     if (d.incomplete) lines.push('   OBS: utstämpling saknas');
@@ -1018,7 +1196,7 @@ function exportCsv() {
     .filter((a) => sum.acts[a] || activities().length > 1);
   const rows = [['Datum', 'Veckodag', 'Vecka', 'Kom in', 'Lunch början', 'Lunch slut', 'Gick hem',
     'Lunch (min)', 'Arbetad tid (h:mm)', 'Arbetad tid (timmar)', 'Schema (h:mm)', 'Flex (h:mm)',
-    ...acts.map((a) => `${a} (timmar)`), 'Anmärkning']];
+    ...acts.map((a) => `${a} (timmar)`), 'Frånvaro', 'Frånvaro (timmar)', 'Orsak', 'Anmärkning']];
 
   for (const d of sum.days) {
     const first = (t) => { const e = d.events.find((x) => x.type === t); return e ? fmtTime(e.ts) : ''; };
@@ -1039,12 +1217,16 @@ function exportCsv() {
       fmtHM(d.expected),
       d.flex != null ? fmtHM(d.flex) : '',
       ...acts.map((a) => fmtHours(d.acts[a] || 0)),
+      d.absence ? ABSENCE_KINDS[d.absence.kind].label : '',
+      d.absence ? fmtHours(absenceMs(d.absence, d.key)) : '',
+      d.absence ? d.absence.reason || '' : '',
       notes.join(' / '),
     ]);
   }
   rows.push([]);
   rows.push(['Totalt', '', '', '', '', '', '', '', fmtHM(sum.work), fmtHours(sum.work), fmtHM(sum.expected),
-    fmtHM(sum.flex), ...acts.map((a) => fmtHours(sum.acts[a] || 0)), '']);
+    fmtHM(sum.flex), ...acts.map((a) => fmtHours(sum.acts[a] || 0)), '',
+    fmtHours(Object.values(sum.absence).reduce((s, t) => s + t.ms, 0)), '', '']);
 
   const csv = rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
   download(`tidrapport_${range.from}_${range.to}.csv`, '﻿' + csv, 'text/csv;charset=utf-8');
@@ -1071,6 +1253,11 @@ async function restore(file) {
       byId.set(e.id, e);
     }
     state.events = Array.from(byId.values());
+    if (Array.isArray(data.absences)) {
+      const abs = new Map(state.absences.map((a) => [a.id, a]));
+      for (const a of data.absences.filter(isValidAbsence)) abs.set(a.id, a);
+      state.absences = Array.from(abs.values());
+    }
     save();
     render();
     toast(`Återställt – ${added} nya stämplingar`);
@@ -1190,6 +1377,12 @@ function showView(name) {
 function bind() {
   $$('.tab').forEach((t) => (t.onclick = () => showView(t.dataset.view)));
   $$('[data-add-event]').forEach((b) => (b.onclick = () => openEdit(null)));
+  $$('[data-add-absence]').forEach((b) => (b.onclick = () => openAbsence(null)));
+  $('#absence-btn').onclick = () => {
+    const existing = absenceMap().get(dateKey(Date.now()));
+    openAbsence(existing || null);
+  };
+  bindAbsenceDialog();
   $('#scan-btn').onclick = openScanner;
   $('#scan-close').onclick = closeScanner;
   $('#scanner').addEventListener('cancel', closeScanner);
@@ -1286,10 +1479,11 @@ function bind() {
   }
 
   $('#clear-btn').onclick = () => {
-    if (!state.events.length) return toast('Det finns inget att radera');
+    if (!state.events.length && !state.absences.length) return toast('Det finns inget att radera');
     if (!confirm('Radera ALLA stämplingar? Det går inte att ångra.')) return;
     if (!confirm('Är du helt säker? Spara gärna en säkerhetskopia först.')) return;
     state.events = [];
+    state.absences = [];
     save();
     render();
     showStorageInfo();

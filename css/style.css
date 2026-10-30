@@ -183,6 +183,20 @@ main { max-width: 640px; margin: 0 auto; padding: 16px; }
 }
 .action small { font-weight: 400; opacity: .85; font-size: .8rem; }
 
+.absence-btn { width: 100%; margin: -4px 0 16px; }
+.absence-chip {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lunch-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.day .absence-chip { margin-top: 8px; }
 .scan { width: 100%; margin-bottom: 16px; background: var(--surface); color: var(--text); border: 2px dashed var(--border); min-height: 56px; }
 
 /* Listor */

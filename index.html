@@ -34,6 +34,7 @@
           <div><span class="muted">Flex denna vecka</span><strong id="week-flex">±0 min</strong></div>
         </div>
         <div id="today-acts" class="today-acts"></div>
+        <button id="today-absence" class="absence-chip" type="button" hidden></button>
       </div>
 
       <div id="act-picker" class="segmented" role="group" aria-label="Aktivitet"></div>
@@ -44,6 +45,8 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 3h3a1 1 0 0 1 1 1v3M21 17v3a1 1 0 0 1-1 1h-3M7 21H4a1 1 0 0 1-1-1v-3M7 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         Skanna QR-kod
       </button>
+
+      <button id="absence-btn" class="btn secondary absence-btn" type="button">Ledig / sjuk…</button>
 
       <div class="card">
         <div class="card-head">
@@ -58,7 +61,10 @@
     <section id="view-history" class="view">
       <div class="card-head">
         <h2>Historik</h2>
-        <button class="link" type="button" data-add-event>+ Lägg till</button>
+        <div class="row">
+          <button class="link" type="button" data-add-absence>+ Frånvaro</button>
+          <button class="link" type="button" data-add-event>+ Stämpling</button>
+        </div>
       </div>
       <div id="history"></div>
     </section>
@@ -203,6 +209,33 @@
         <button id="edit-delete" class="btn danger" type="button">Ta bort</button>
         <button value="cancel" class="btn secondary" formnovalidate>Avbryt</button>
         <button id="edit-save" value="save" class="btn">Spara</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Frånvaro -->
+  <dialog id="absence-dialog" class="sheet">
+    <form method="dialog" id="absence-form">
+      <h2 id="absence-title">Frånvaro</h2>
+      <div class="segmented" id="absence-kind" role="radiogroup" aria-label="Typ av frånvaro"></div>
+      <p class="hint" id="absence-kind-hint"></p>
+      <div class="row">
+        <label class="field"><span>Från</span><input id="absence-from" type="date" required></label>
+        <label class="field"><span>Till</span><input id="absence-to" type="date" required></label>
+      </div>
+      <label class="check"><input id="absence-full" type="checkbox" checked> Hela dagen</label>
+      <label class="field" id="absence-hours-field" hidden>
+        <span>Antal timmar</span>
+        <input id="absence-hours" type="number" min="0.25" max="24" step="0.25" inputmode="decimal">
+      </label>
+      <label class="field">
+        <span>Orsak (valfri)</span>
+        <input id="absence-reason" type="text" maxlength="200" placeholder="t.ex. förkyld, semester, VAB">
+      </label>
+      <div class="row end">
+        <button id="absence-delete" class="btn danger" type="button">Ta bort</button>
+        <button value="cancel" class="btn secondary" formnovalidate>Avbryt</button>
+        <button value="save" class="btn">Spara</button>
       </div>
     </form>
   </dialog>
